@@ -2,6 +2,7 @@ import telebot
 import requests
 from bs4 import BeautifulSoup
 from telebot import types
+import re
 
 
 bot = telebot.TeleBot('7645331493:AAF_6Y9biB_bHmcpCkCT9FpfomRXJ8PN4nI')
@@ -10,12 +11,31 @@ bot = telebot.TeleBot('7645331493:AAF_6Y9biB_bHmcpCkCT9FpfomRXJ8PN4nI')
 def get_product_info(url):
     response = requests.get(url)
     soup = BeautifulSoup(response.text, 'html.parser')
+
+    divs = soup.find_all('div', class_=lambda x: x and x.startswith('_title_'))
+    if not divs:
+        name = "Название товара не найдено"
+    else:
+        text = divs[0].get_text()
+        filtered_text = re.sub(r'[\u4e00-\u9fff]+', '', text)
+        print(filtered_text)
+        name = filtered_text
+
     img = soup.find('img')
     if img and 'src' in img.attrs:
         image = img['src']
     else:
         image = "Изображение не найдено"
-    return image
+
+    price_div = soup.find('div', class_='_itemValue_')
+    if price_div:
+        price = price_div.get_text()
+    else:
+        price = "Цена не найдена"
+
+    return name, image, price
+
+
 
 
 def send_welcome_keyboard(chat_id):
@@ -73,14 +93,13 @@ def get_text_messages(message):
         send_make_an_order_keyboard(message.from_user.id)
         c = 1
     elif message.text.startswith("http://") or message.text.startswith("https://") and c == 1:
-        image = get_product_info(message.text)
-        if image:
-            if image != "Изображение не найдено":
-                bot.send_photo(message.from_user.id, image)
-            else:
-                bot.send_message(message.from_user.id, image)
+        name, image, price = get_product_info(message.text)
+        if image and image != "Изображение не найдено":
+            bot.send_photo(message.from_user.id, image)
         else:
-            bot.send_message(message.from_user.id, "Не удалось извлечь информацию о товаре.")
+            bot.send_message(message.from_user.id, image)
+
+        bot.send_message(message.from_user.id, f"Название товара: {name}\nЦена: {price}")
         c = 0
     elif user_message == 'откуда брать ссылку?':
         image = ['1.jpg', '2.jpg']
